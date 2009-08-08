@@ -824,8 +824,8 @@ namespace Grider
             RequestImagePacket imgPacket = (RequestImagePacket)packet;
 
             if (!UserInventory.GetImage(imgPacket))
-                return packet;
-                //MainAgent.RegClient.GetImage(imgPacket);
+                //return packet;
+                MainAgent.RegClient.GetImage(imgPacket);
 
             return null;
         }

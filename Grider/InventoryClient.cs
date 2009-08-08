@@ -1021,7 +1021,7 @@ namespace Grider
             else if (count == 0)
             {
                 // None of them were inventory items
-                //Console.WriteLine("  >> No images were inventory items");
+                Console.WriteLine("  >> No images were inventory items");
                 return false;
             }
             else

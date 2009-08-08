@@ -7,18 +7,19 @@ using OpenMetaverse;
 using OpenMetaverse.Packets;
 
 using OpenSim.Framework.Communications.Cache;
+using OpenSim.Services.Interfaces;
+using OpenSim.Services.Connectors;
 
 namespace Grider
 {
-    public class RegionClient : IAssetReceiver
+    public class RegionClient
     {
         GriderProxy proxy;
         string RegionURL;
         string AuthToken;
-        GridAssetClient assClient;
+        IAssetService m_RegionAssetService;
+
         Dictionary<UUID, TextureSender> textureSenders = new Dictionary<UUID, TextureSender>();
-        Dictionary<UUID, AssetSender> assetSenders = new Dictionary<UUID, AssetSender>();
-        Dictionary<UUID, AssetReceiver> assetReceivers = new Dictionary<UUID, AssetReceiver>();
 
         public RegionClient(GriderProxy p, string regionurl, string auth)
         {
@@ -26,8 +27,8 @@ namespace Grider
             RegionURL = regionurl;
             AuthToken = auth;
             //assDownloader = new AssetDownloader(RegionURL, this);
-            assClient = new GridAssetClient(RegionURL);
-            assClient.SetReceiver(this);
+
+            m_RegionAssetService = new AssetServicesConnector(RegionURL);
         }
 
         public bool GetImage(RequestImagePacket imgPacket)
@@ -41,10 +42,11 @@ namespace Grider
                 {
                     if (!textureSenders.ContainsKey(imgPacket.RequestImage[i].Image))
                     {
-                        lock (textureSenders)
-                            textureSenders.Add(imgPacket.RequestImage[i].Image, new TextureSender(proxy, imgPacket.RequestImage[i].DiscardLevel, imgPacket.RequestImage[i].Packet));
-                        assClient.RequestAsset(imgPacket.RequestImage[i].Image, true);
-                        //assDownloader.RequestAsset(imgPacket.RequestImage[i].Image, true, AuthToken);
+                        TextureSender sender = new TextureSender(proxy, imgPacket.RequestImage[i].DiscardLevel, imgPacket.RequestImage[i].Packet);
+                        textureSenders.Add(imgPacket.RequestImage[i].Image, sender);
+                        m_RegionAssetService.Get(imgPacket.RequestImage[i].Image.ToString(), sender, TextureReceived);
+                        //old: assClient.RequestAsset(imgPacket.RequestImage[i].Image, true);
+                        //older: assDownloader.RequestAsset(imgPacket.RequestImage[i].Image, true, AuthToken);
                     }
                 }
                 Console.WriteLine("  >> Image is region asset");
@@ -56,66 +58,28 @@ namespace Grider
 
         #region IAssetReceiver
 
-        public void AssetReceived(AssetBase asset, bool isTexture)
+        public void TextureReceived(string id, Object sender, AssetBase asset)
         {
-            Console.WriteLine("[RegionClient]: Asset received " + asset.FullID);
-            if (isTexture)
-            {
-                TextureSender sender = null;
-                lock (textureSenders)
-                {
-                    if (textureSenders.TryGetValue(asset.FullID, out sender))
-                        textureSenders.Remove(asset.FullID);
-                    else
-                        Console.WriteLine("[RegionClient]: received texture but there is no texture sender!");
-                }
-                if (sender != null)
-                    sender.TextureReceived(asset);
-            }
-            else
-            {
-                AssetSender sender = null;
-                lock (assetSenders)
-                {
-                    if (assetSenders.TryGetValue(asset.FullID, out sender))
-                        assetSenders.Remove(asset.FullID);
-                    else
-                        Console.WriteLine("[RegionClient]: received asset but there is no asset sender!");
-                }
-                if (sender != null)
-                    sender.AssetReceived(asset);
-            }
-        }
 
-        public void AssetNotFound(UUID assetID, bool IsTexture)
-        {
-            Console.WriteLine("[RegionClient]: Asset not found " + assetID);
-            if (IsTexture)
+            if ((sender != null) && (sender is TextureSender))
             {
-                TextureSender sender = null;
+                TextureSender tsender = (TextureSender) sender;
                 lock (textureSenders)
+                    textureSenders.Remove(new UUID(id));
+
+                if (asset == null)
                 {
-                    if (textureSenders.TryGetValue(assetID, out sender))
-                        textureSenders.Remove(assetID);
-                    else
-                        Console.WriteLine("[RegionClient]: rceived texture callback but there is no texture sender!");
+                    Console.WriteLine("[RegionClient]: Texture not found " + id);
+                    return;
                 }
-                if (sender != null)
-                    sender.TextureNotFound(assetID);
+
+                Console.WriteLine("[RegionClient]: Texture received " + asset.FullID);
+                tsender.TextureReceived(asset);
             }
             else
             {
-                AssetSender sender = null;
-                lock (assetSenders)
-                {
-                    if (assetSenders.TryGetValue(assetID, out sender))
-                        textureSenders.Remove(assetID);
-                    else
-                        Console.WriteLine("[RegionClient]: received asset callback but there is no asset sender!");
-                }
-                //if (sender != null)
-                //    sender.AssetNotFound(assetID);
-            }
+                Console.WriteLine("[RegionClient]: Something wrong with texture sender for texture " + asset.FullID);
+           }
         }
 
         #endregion IAssetReceiver
