@@ -68,12 +68,22 @@ namespace Grider
         private int RequestedDiscardLevel = -1;
         private GriderProxy proxy;
         private uint StartPacketNumber = 0;
+        private IDownloader m_downloader;
 
-        public TextureSender(GriderProxy _proxy, int discardLevel, uint packetNumber)
+        public TextureSender(IDownloader downloader, GriderProxy _proxy, int discardLevel, uint packetNumber)
         {
             proxy = _proxy;
             RequestedDiscardLevel = discardLevel;
             StartPacketNumber = packetNumber;
+            m_downloader = downloader;
+        }
+
+        public void UpdateRequest(int discardLevel, uint packetNumber)
+        {
+            Console.WriteLine("[TextureSender]: Updated request to " + discardLevel + ", " + packetNumber);
+            RequestedDiscardLevel = discardLevel;
+            StartPacketNumber = packetNumber;
+            PacketCounter = (int)StartPacketNumber;
         }
 
         /// <summary>
@@ -87,6 +97,7 @@ namespace Grider
             PacketCounter = (int)StartPacketNumber;
             ImageLoaded = true;
             SendTexture();
+            m_downloader.Done(asset.FullID);
         }
 
         public void TextureNotFound(UUID uuid)

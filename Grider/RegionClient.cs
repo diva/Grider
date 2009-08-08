@@ -12,7 +12,7 @@ using OpenSim.Services.Connectors;
 
 namespace Grider
 {
-    public class RegionClient
+    public class RegionClient : IDownloader
     {
         GriderProxy proxy;
         string RegionURL;
@@ -42,11 +42,16 @@ namespace Grider
                 {
                     if (!textureSenders.ContainsKey(imgPacket.RequestImage[i].Image))
                     {
-                        TextureSender sender = new TextureSender(proxy, imgPacket.RequestImage[i].DiscardLevel, imgPacket.RequestImage[i].Packet);
+                        TextureSender sender = new TextureSender(this, proxy, imgPacket.RequestImage[i].DiscardLevel, imgPacket.RequestImage[i].Packet);
                         textureSenders.Add(imgPacket.RequestImage[i].Image, sender);
                         m_RegionAssetService.Get(imgPacket.RequestImage[i].Image.ToString(), sender, TextureReceived);
                         //old: assClient.RequestAsset(imgPacket.RequestImage[i].Image, true);
                         //older: assDownloader.RequestAsset(imgPacket.RequestImage[i].Image, true, AuthToken);
+                    }
+                    else
+                    {
+                        TextureSender sender = textureSenders[imgPacket.RequestImage[i].Image];
+                        sender.UpdateRequest(imgPacket.RequestImage[i].DiscardLevel, imgPacket.RequestImage[i].Packet);
                     }
                 }
                 Console.WriteLine("  >> Image is region asset");
@@ -61,19 +66,17 @@ namespace Grider
         public void TextureReceived(string id, Object sender, AssetBase asset)
         {
 
+            if (asset == null)
+            {
+                Console.WriteLine("[RegionClient]: Texture not found " + id);
+                Done(new UUID(id));
+                return;
+            }
+
             if ((sender != null) && (sender is TextureSender))
             {
-                TextureSender tsender = (TextureSender) sender;
-                lock (textureSenders)
-                    textureSenders.Remove(new UUID(id));
-
-                if (asset == null)
-                {
-                    Console.WriteLine("[RegionClient]: Texture not found " + id);
-                    return;
-                }
-
                 Console.WriteLine("[RegionClient]: Texture received " + asset.FullID);
+                TextureSender tsender = (TextureSender)sender;
                 tsender.TextureReceived(asset);
             }
             else
@@ -84,5 +87,14 @@ namespace Grider
 
         #endregion IAssetReceiver
 
+        #region IDownloader
+
+        public void Done(UUID textureID)
+        {
+            lock (textureSenders)
+                textureSenders.Remove(textureID);
+        }
+
+        #endregion IDownloader
     }
 }

@@ -34,13 +34,16 @@ using OpenSim.Framework;
 using OpenSim.Framework.Servers;
 using OpenSim.Framework.Communications.Services;
 using OpenSim.Framework.Communications.Cache;
+using OpenSim.Services.Interfaces;
+using OpenSim.Services.Connectors;
+
 using OpenMetaverse;
 using OpenMetaverse.Packets;
 using OpenSimLibComms;
 
 namespace Grider
 {
-    public class InventoryClient : IAssetReceiver
+    public class InventoryClient : IAssetReceiver, IDownloader
     {
         // Items in the library are owned by this UUID
         private static UUID libOwner = new UUID("11111111-1111-0000-0000-000100bba000");
@@ -56,8 +59,8 @@ namespace Grider
         GriderProxy proxy;
         bool connected = false;
         public Hashtable CapsHandlers = null;
-        //GridAssetClient assClient;
         AssetDownloader assDownloader;
+        //IAssetService m_AssetService;
 
         Dictionary<char, List<InventoryAsset>> inventoryItems = new Dictionary<char, List<InventoryAsset>>();
 
@@ -999,7 +1002,7 @@ namespace Grider
                                 if (!textureSenders.ContainsKey(imgPacket.RequestImage[i].Image))
                                 {
                                     lock (textureSenders)
-                                        textureSenders.Add(imgPacket.RequestImage[i].Image, new TextureSender(proxy, imgPacket.RequestImage[i].DiscardLevel, imgPacket.RequestImage[i].Packet));
+                                        textureSenders.Add(imgPacket.RequestImage[i].Image, new TextureSender(this, proxy, imgPacket.RequestImage[i].DiscardLevel, imgPacket.RequestImage[i].Packet));
                                     assDownloader.RequestAsset(item, true);
                                 }
                             }
@@ -1244,12 +1247,8 @@ namespace Grider
                 lock (textureSenders)
                 {
                     if (textureSenders.TryGetValue(asset.FullID, out sender))
-                        textureSenders.Remove(asset.FullID);
-                    else
-                        Console.WriteLine("[UserInventory]: received texture but there is no texture sender!");
+                        sender.TextureReceived(asset);
                 }
-                if (sender != null)
-                    sender.TextureReceived(asset);
             }
             else
             {
@@ -1275,7 +1274,7 @@ namespace Grider
                 lock (textureSenders)
                 {
                     if (textureSenders.TryGetValue(assetID, out sender))
-                        textureSenders.Remove(assetID);
+                        Done(assetID);
                     else
                         Console.WriteLine("[UserInventory]: rceived texture callback but there is no texture sender!");
                 }
@@ -1298,6 +1297,17 @@ namespace Grider
         }
 
         #endregion IAssetReceiver
+
+        #region IDownloader
+
+        public void Done(UUID assetID)
+        {
+            lock (textureSenders)
+                if (textureSenders.ContainsKey(assetID))
+                    textureSenders.Remove(assetID);
+        }
+
+        #endregion IDownloader
 
         #region misc
 
