@@ -1,0 +1,14 @@
+To run:
+
+$ bin/Grider.exe
+
+When prompted, set the viewer path or leave it to the default value.
+Grider works with both the standard Linden viewer and others (e.g. Hippo).
+
+- As first name enter First.Last
+- As last name enter the address of your user server. For example:
+  localhost:9000
+  osgrid.org
+- As password, enter your password
+
+Grider requires a grid supporting HG2.
